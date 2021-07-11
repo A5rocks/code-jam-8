@@ -1,17 +1,16 @@
+import numpy as np
 from blessed import Terminal
 
 term = Terminal()
-char = "X"
-x, y, xs = (
-    1,
-    2,
-    4,
-)
-with term.cbreak(), term.hidden_cursor():
+char = "."
+x, y, xs = 1, 2, 4
+
+
+def draw_board() -> None:
+    """Rudimentary attempt to draw a game board."""
     # clear the screen
-    print(term.home + term.clear)
+    print(term.clear)
     # print the game board
-    print()
     print(
         " "
         + f" {term.bold}{term.green}┃{term.normal} ".join(
@@ -125,14 +124,44 @@ with term.cbreak(), term.hidden_cursor():
     )
     print()
 
-    # erase the gameboard
-    while term.inkey(timeout=0.02) != "q":
-        # erase,
-        txt_erase = term.move_xy(x, y) + " "
-        print(txt_erase, end="", flush=True)
-        # move
-        x, y = x + xs, y
-        # bounce,
-        if x >= 37:
-            y += 2
-            x = 1
+
+def redraw_subgrid(subgrid: np.array, number: str) -> None:
+    """Takes the subgrid number range(0,9) and redraws that grid based on the subgrid"""
+    # Set Start Coordinates based on subgrid number
+    start_coords = {
+        "0": (0, 13),
+        "1": (12, 13),
+        "2": (24, 13),
+        "3": (0, 7),
+        "4": (12, 7),
+        "5": (24, 7),
+        "6": (0, 1),
+        "7": (12, 1),
+        "8": (24, 1),
+    }
+    redraw_game(subgrid, start_coords[number])
+    # Can also write functions to redraw
+
+
+def redraw_game(subgrid: np.array, start_coords: tuple) -> None:
+    """Takes a subgrid numpy array and draws the current state of the game on that board"""
+    x, y = start_coords
+    x += 1
+    for row in subgrid:
+        for entry in row:
+            print(term.move_xy(x, y) + f"{entry}")
+            x += 4
+            if x > start_coords[0] + 12:
+                y += 2
+                x = start_coords[0] + 1
+
+
+with term.cbreak(), term.hidden_cursor():
+    val = ""
+    draw_board()
+    test_subgrid = np.array([["X", "O", "X"], ["O", "O", "."], ["X", ".", "."]])
+
+    while (val := term.inkey()) != "q":
+        if val in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
+            redraw_subgrid(test_subgrid, str(int(val) - 1))
+        continue
