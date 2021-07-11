@@ -159,7 +159,10 @@ class Board:
         print()
 
     def redraw_gamestate(
-        self, term: blessed.Terminal, subgrid: typing.Any, start_coords: tuple
+        self,
+        term: blessed.Terminal,
+        subgrid: typing.Any,
+        start_coords: typing.Tuple[int, int],
     ) -> None:
         """Takes a subgrid numpy array and draws the current state of the game on that board"""
         x, y = start_coords
