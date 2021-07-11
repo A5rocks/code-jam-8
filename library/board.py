@@ -7,7 +7,7 @@ import numpy as np
 class Board:
     """Represents the board that the game of tic-tac-toe is played on."""
 
-    contents: np.array = np.full((9, 9), ".")
+    contents: np.array = np.full((9, 9), ".")  # type: ignore
     player1_turn: bool
     game_over: bool
 
@@ -30,11 +30,11 @@ class Board:
 
     #     self.game_over = self._won_wrapper()
 
-    def select_subgrid(
-        self, number: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7, 8]
-    ) -> np.array:
-        """Choose subgrid game to play."""
-        pass
+    # def select_subgrid(
+    #     self, number: typing.Literal[0, 1, 2, 3, 4, 5, 6, 7, 8]
+    # ) -> np.array:
+    #     """Choose subgrid game to play."""
+    #     pass
 
     def draw_board(self, term: blessed.Terminal) -> None:
         """Rudimentary attempt to draw a game board."""
@@ -159,7 +159,7 @@ class Board:
         print()
 
     def redraw_gamestate(
-        self, term: blessed.Terminal, subgrid: np.array, start_coords: tuple
+        self, term: blessed.Terminal, subgrid: typing.Any, start_coords: tuple
     ) -> None:
         """Takes a subgrid numpy array and draws the current state of the game on that board"""
         x, y = start_coords
@@ -173,7 +173,7 @@ class Board:
                     x = start_coords[0] + 1
 
     def redraw_subgrid(
-        self, term: blessed.Terminal, subgrid: np.array, number: str
+        self, term: blessed.Terminal, subgrid: typing.Any, number: str
     ) -> None:
         """Takes the subgrid number range(0,9) and redraws that grid based on the subgrid"""
         # Set Start Coordinates based on subgrid number
@@ -191,25 +191,25 @@ class Board:
         self.redraw_gamestate(term, subgrid, start_coords[number])
         # Can also write functions to redraw grid
 
-    def _won_wrapper(self) -> bool:
-        return self._won(tuple(content.contents for content in self.contents))
+    # def _won_wrapper(self) -> bool:
+    #     return self._won(tuple(content.contents for content in self.contents))
 
-    def _won(self, board: tuple[typing.Literal["X", "O", " "], ...]) -> bool:
-        if any(
-            board[3 * i : 3 * (i + 1)] in (("X", "X", "X"), ("O", "O", "O"))
-            for i in range(3)
-        ):
-            return True
+    # def _won(self, board: tuple[typing.Literal["X", "O", " "], ...]) -> bool:
+    #     if any(
+    #         board[3 * i : 3 * (i + 1)] in (("X", "X", "X"), ("O", "O", "O"))
+    #         for i in range(3)
+    #     ):
+    #         return True
 
-        if any(
-            board[3 * i :: 3] in (("X", "X", "X"), ("O", "O", "O")) for i in range(3)
-        ):
-            return True
+    #     if any(
+    #         board[3 * i :: 3] in (("X", "X", "X"), ("O", "O", "O")) for i in range(3)
+    #     ):
+    #         return True
 
-        if board[0] == board[4] == board[8] != " ":
-            return True
+    #     if board[0] == board[4] == board[8] != " ":
+    #         return True
 
-        if board[2] == board[4] == board[6] != " ":
-            return True
+    #     if board[2] == board[4] == board[6] != " ":
+    #         return True
 
-        return False
+    #     return False
