@@ -107,12 +107,54 @@ class Board:
             else:
                 print(term.move_x(x) + crosses)
 
+    def victory_subgrid(
+        self,
+        term: blessed.Terminal,
+        subgrid: npt.NDArray[np.str_],
+        start_coords: typing.Tuple[int, int],
+        winner: str,
+    ) -> None:
+        """Takes the subgrid and draws a victory symbol over that grid"""
+        x, y = start_coords
+        if winner == "None":
+            return None
+        if winner == "X":
+            print(
+                term.move_xy(x + 1, y)
+                + f"{term.on_color_rgb(0, 0, 254)}{subgrid[0, 0]} {term.normal}"
+                + term.move_x(x + 9)
+                + f"{term.on_color_rgb(0, 0, 254)}{subgrid[0, 2]} {term.normal}"
+            )
+            print(
+                term.move_x(x + 3)
+                + f"{term.on_color_rgb(0, 0, 254)}┼─{term.normal}"
+                + term.move_x(x + 7)
+                + f"{term.on_color_rgb(0, 0, 254)}┼─{term.normal}"
+            )
+            print(
+                term.move_x(x + 5)
+                + f"{term.on_color_rgb(0, 0, 254)}{subgrid[0, 0]} {term.normal}"
+            )
+            print(
+                term.move_x(x + 3)
+                + f"{term.on_color_rgb(0, 0, 254)}┼─{term.normal}"
+                + term.move_x(x + 7)
+                + f"{term.on_color_rgb(0, 0, 254)}┼─{term.normal}"
+            )
+            print(
+                term.move_x(x + 1)
+                + f"{term.on_color_rgb(0, 0, 254)}{subgrid[2, 0]} {term.normal}"
+                + term.move_x(x + 9)
+                + f"{term.on_color_rgb(0, 0, 254)}{subgrid[2, 2]} {term.normal}"
+            )
+
     def redraw_subgrid(
         self,
         term: blessed.Terminal,
         subgrid: npt.NDArray[np.str_],
         number: str,
         color: str,
+        winner: str = "None",
     ) -> None:
         """Takes the subgrid number range(0,9) and redraws that grid based on the subgrid"""
         # Set Start Coordinates based on subgrid number
@@ -129,3 +171,4 @@ class Board:
         }
         self.redraw_gridlines(term, start_coords[number], color)
         self.redraw_gamestate(term, subgrid, start_coords[number])
+        self.victory_subgrid(term, subgrid, start_coords[number], winner)
