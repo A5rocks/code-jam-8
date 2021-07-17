@@ -78,7 +78,6 @@ class GameState:
     def wait_for_ready(self, term: blessed.Terminal) -> None:
         """Wait for the player to start turn"""
         self.current = State.wait_for_ready.value
-
         self.change_player(term)
 
         if self.user_input == "y" or self.user_input == "KEY_ENTER":
