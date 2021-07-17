@@ -1,11 +1,39 @@
 import time
+from enum import Enum
 
 import blessed
 
-from library.user_term import convert_to_space_location
-
 from .board import Board
-from .user_term import update_user_section
+from .user_term import convert_to_space_location, update_user_section
+
+
+class Token(Enum):
+    """Defines Tokens"""
+
+    EMPTY = "·"
+    PLAYER_ONE = "X"
+    PLAYER_TWO = "O"
+    LOCKED = "*"
+
+    @staticmethod
+    def format(input: str, term: blessed.Terminal) -> str:
+        """Formats string based on what it is"""
+        if input == Token.PLAYER_ONE.value:
+            return f"{term.red}{input}{term.normal}"
+        elif input == Token.PLAYER_TWO.value:
+            return f"{term.blue}{input}{term.normal}"
+        else:
+            return input
+
+
+class state(Enum):
+    """Defines the machine state"""
+
+    error = 0
+    wait_for_ready = 10
+    update_subgrid_select = 20
+    update_space_select = 30
+    end_turn = 40
 
 
 class GameState:
@@ -13,10 +41,10 @@ class GameState:
 
     def __init__(self, term: blessed.Terminal):
         self.current: int = 0
-        self.good_move = False
+        self.good_move: bool = False
         self.save_subgrid: bool = False
         self.update_board: bool = False
-        self.player_active: int = 0
+        self.player_active: str = Token.PLAYER_ONE.value
         self.term_info: list[str] = [""] * 3
         self.user_select_subgrid: int = 0
         self.user_select_space: int = 0
@@ -47,8 +75,8 @@ class GameState:
     def wait_for_ready(self, term: blessed.Terminal) -> None:
         """Wait for the player to start turn"""
         self.current = 10
-        if self.player_active == 0:
-            self.player_active = 1
+        if self.player_active == Token.EMPTY:
+            self.player_active = Token.PLAYER_ONE.value
 
         if self.user_input == "y" or self.user_input == "KEY_ENTER":
             self.term_info[0] = f"Player {self.player_active} Active"
@@ -108,7 +136,7 @@ class GameState:
             )
         elif self.user_input == "KEY_ENTER" and self.user_select_space != 0:
             if self.confirm_good_move(board):
-                self.update_board = True  # good to place player token
+                self.update_board = True  # good to place player Token
                 self.confirm_entry(term)
             else:
                 self.next = 30  # TODO go to error handling and reset values
@@ -148,24 +176,34 @@ class GameState:
         working_space_location = convert_to_space_location(self.user_select_space)
         subgrid_number = str(self.user_select_subgrid)
         subgrid = board.collect_subgrid(subgrid_number)
-        if self.player_active == 1:
-            subgrid[working_space_location[0], working_space_location[1]] = "X"
-        elif self.player_active == 2:
-            subgrid[working_space_location[0], working_space_location[1]] = "O"
+        if self.player_active == Token.PLAYER_ONE.value:
+            subgrid[
+                working_space_location[0], working_space_location[1]
+            ] = Token.PLAYER_ONE.value
+        elif self.player_active == Token.PLAYER_TWO.value:
+            subgrid[
+                working_space_location[0], working_space_location[1]
+            ] = Token.PLAYER_TWO.value
 
-        self.change_player()
-        if board.check_grid_victory(subgrid) == "X":
-            board.redraw_subgrid(term, subgrid, subgrid_number, term.green, "X")
-        elif board.check_grid_victory(subgrid) == "O":
-            board.redraw_subgrid(term, subgrid, subgrid_number, term.green, "O")
+        self.change_player(term)
+        if board.check_grid_victory(subgrid) == Token.PLAYER_ONE.value:
+            board.redraw_subgrid(
+                term, subgrid, subgrid_number, term.green, Token.PLAYER_ONE.value
+            )
+        elif board.check_grid_victory(subgrid) == Token.PLAYER_TWO.value:
+            board.redraw_subgrid(
+                term, subgrid, subgrid_number, term.green, Token.PLAYER_TWO.value
+            )
         else:
-            board.redraw_subgrid(term, subgrid, subgrid_number, term.green, "None")
+            board.redraw_subgrid(
+                term, subgrid, subgrid_number, term.green, Token.EMPTY.value
+            )
 
         # handle logic for next grid
 
         if board.check_subboard_victory((str(self.user_select_space))) not in (
-            "X",
-            "O",
+            Token.PLAYER_ONE.value,
+            Token.PLAYER_TWO.value,
         ):
             self.user_select_subgrid = self.user_select_space
             self.user_select_space = 0
@@ -179,7 +217,10 @@ class GameState:
         self.update_board = False
 
         # circle back to top or end the game
-        if board.check_board_victory() not in ("X", "O"):
+        if board.check_board_victory() not in (
+            Token.PLAYER_ONE.value,
+            Token.PLAYER_TWO.value,
+        ):
             self.wait_for_ready(term)
         else:
             self.game_over(term)
@@ -193,7 +234,7 @@ class GameState:
         working_space_location = convert_to_space_location(self.user_select_space)
         if board.collect_subgrid(str(self.user_select_subgrid))[
             working_space_location[0], working_space_location[1]
-        ] not in ("X", "O"):
+        ] not in (Token.PLAYER_ONE.value, Token.PLAYER_TWO.value):
             self.good_move = True
 
         return self.good_move
@@ -205,17 +246,20 @@ class GameState:
         self.good_move = False
 
         working_subgrid = board.collect_subgrid(str(self.user_select_subgrid))
-        if board.check_grid_victory(working_subgrid) not in ("X", "O"):
+        if board.check_grid_victory(working_subgrid) not in (
+            Token.PLAYER_ONE.value,
+            Token.PLAYER_TWO.value,
+        ):
             self.good_move = True
 
         return self.good_move
 
-    def change_player(self) -> None:
+    def change_player(self, term: blessed.Terminal) -> None:
         """Change Player"""
-        if self.player_active == 1:
-            self.player_active = 2
+        if self.player_active == Token.PLAYER_ONE.value:
+            self.player_active = Token.PLAYER_TWO.value
         else:
-            self.player_active = 1
+            self.player_active = Token.PLAYER_ONE.value
 
     def game_over(self, term: blessed.Terminal) -> None:
         """Placeholder game over function"""
