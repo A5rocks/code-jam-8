@@ -60,7 +60,7 @@ class GameState:
         self.ws_url: str = ""
         self.networked: bool = False
         self.lobby_code: str = ""
-        self.networked_player: int = 0
+        self.networked_player: str = Token.EMPTY.value
 
         # networking queues
         self.inputs: typing.Optional[QUEUE] = None
@@ -148,7 +148,7 @@ class GameState:
         """Ask the user whether they want to join / make a lobby"""
         self.current = State.lobby_creation_prompt.value
         if self.user_input == "y":
-            self.networked_player = 1
+            self.networked_player = Token.PLAYER_ONE.value
             self.inputs, self.outputs = create_connection(None, self.ws_url)
             output_msg = self.outputs.get()
 
@@ -167,7 +167,7 @@ class GameState:
 
             self.draw_starting_user_term(term)
         elif self.user_input == "n":
-            self.networked_player = 2
+            self.networked_player = Token.PLAYER_TWO.value
             print(f"{term.move_xy(0, 26)}lobby code: ", end="", flush=True)
             self.next = State.lobby_code_prompter.value
         else:
@@ -348,7 +348,9 @@ class GameState:
         if board.check_board_victory() not in ("X", "O"):
             self.term_info[0] = f"Player {self.player_active} Active"
 
-            if not self.networked or self.networked_player == self.player_active:
+            token = Token.PLAYER_ONE.value if self.player_active == "1" else Token.PLAYER_TWO.value 
+
+            if not self.networked or self.networked_player == token:
                 if self.user_select_subgrid != 0:
                     self.next = 30  # skip to space select
                     self.term_info[1] = "Select Space by entering 1-9"
