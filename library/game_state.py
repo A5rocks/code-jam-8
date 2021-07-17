@@ -84,17 +84,14 @@ class GameState:
             if self.user_select_subgrid != 0:
                 self.next = State.update_space_select.value  # skip to space select
                 self.term_info[1] = "Select Space by entering 1-9"
+                self.term_info[2] = (
+                    f"Current: SubGrid {self.user_select_subgrid} "
+                    f"| Space {self.user_select_space}"
+                )
             else:
                 self.next = State.update_subgrid_select.value  # go to subgrid select
                 self.term_info[1] = "Select SubGrid by entering 1-9"
-
-            self.term_info[2] = (
-                f"Current: SubGrid {self.user_select_subgrid} "
-                f"| Space {self.user_select_space}"
-            )
-            self.redraw_user_term(term)
-            return None
-
+                self.term_info[2] = f"Current: SubGrid {self.user_select_subgrid} "
         else:
             self.next = State.wait_for_ready.value
 
@@ -231,6 +228,10 @@ class GameState:
         else:
             # change the subgrid to 0 to let the next player choose the subgrid
             self.user_select_subgrid = 0
+            self.term_info[2] = ""
+            self.redraw_user_term(term)
+            self.term_info[2] = f"Current: SubGrid {self.user_select_subgrid}"
+
         self.redraw_user_term(term)
         self.update_board = False
 
