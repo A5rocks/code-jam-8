@@ -113,6 +113,14 @@ class GameState:
                 self.term_info[1] = "Select Space by entering 1-9"
                 self.confirm_entry(term)
                 self.next = State.update_space_select.value
+                # highlight active subgrid
+                board.redraw_subgrid(
+                    term,
+                    board.collect_subgrid(str(self.user_select_subgrid)),
+                    str(self.user_select_subgrid),
+                    term.yellow,
+                    None,
+                )
             else:
                 self.next = State.update_subgrid_select.value
                 self.term_info[
@@ -237,28 +245,31 @@ class GameState:
 
     def confirm_good_move(self, board: Board) -> bool:
         """Handle the entry of a bad move"""
+        # TODO need to finish this. maybe move to game logic?
         # guilty until proven innocent
         good_move = False
 
         working_space_location = convert_to_space_location(self.user_select_space)
         if board.collect_subgrid(str(self.user_select_subgrid))[
             working_space_location[0], working_space_location[1]
-        ] not in (Token.PLAYER_ONE.value, Token.PLAYER_TWO.value):
-            self.good_move = True
+        ] not in ("X", "O"):
+            good_move = True
 
         return good_move
 
     def confirm_good_subgrid(self, board: Board) -> bool:
         """Handle the entry of a bad subgrid choice"""
+        # TODO need to finish this. maybe move to game logic?
         # guilty until proven innocent
         good_grid = False
         # pull subgrid just chosen by player
         working_subgrid = board.collect_subgrid(str(self.user_select_subgrid))
-        if board.check_grid_victory(working_subgrid) not in (
-            Token.PLAYER_ONE.value,
-            Token.PLAYER_TWO.value,
+        # check that that subgrid hasn't been won and isn't full
+        if (
+            board.check_grid_victory(working_subgrid) not in ("X", "O")
+            and "·" in working_subgrid
         ):
-            self.good_move = True
+            good_grid = True
 
         return good_grid
 
