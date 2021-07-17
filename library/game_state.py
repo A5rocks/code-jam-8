@@ -45,7 +45,7 @@ class GameState:
         self.good_move: bool = False
         self.save_subgrid: bool = False
         self.update_board: bool = False
-        self.player_active: str = Token.PLAYER_ONE.value
+        self.player_active: str = Token.EMPTY.value
         self.term_info: list[str] = [""] * 3
         self.user_select_subgrid: int = 0
         self.user_select_space: int = 0
@@ -78,12 +78,10 @@ class GameState:
     def wait_for_ready(self, term: blessed.Terminal) -> None:
         """Wait for the player to start turn"""
         self.current = State.wait_for_ready.value
-        if self.player_active == Token.EMPTY.value:
-            self.player_active = Token.PLAYER_ONE.value
+
+        self.change_player(term)
 
         if self.user_input == "y" or self.user_input == "KEY_ENTER":
-            self.term_info[0] = f"Player {self.player_active} Active"
-
             if self.user_select_subgrid != 0:
                 self.next = State.update_space_select.value  # skip to space select
                 self.term_info[1] = "Select Space by entering 1-9"
@@ -190,7 +188,6 @@ class GameState:
                 working_space_location[0], working_space_location[1]
             ] = Token.PLAYER_TWO.value
 
-        self.change_player(term)
         if board.check_grid_victory(subgrid) == Token.PLAYER_ONE.value:
             board.redraw_subgrid(
                 term, subgrid, subgrid_number, term.green, Token.PLAYER_ONE.value
@@ -232,7 +229,6 @@ class GameState:
 
     def confirm_good_move(self, board: Board) -> bool:
         """Handle the entry of a bad move"""
-        # TODO need to finish this. maybe move to game logic?
         # guilty until proven innocent
         self.good_move = False
 
@@ -246,7 +242,6 @@ class GameState:
 
     def confirm_good_subgrid(self, board: Board) -> bool:
         """Handle the entry of a bad subgrid choice"""
-        # TODO need to finish this. maybe move to game logic?
         # guilty until proven innocent
         self.good_move = False
 
@@ -261,16 +256,18 @@ class GameState:
 
     def change_player(self, term: blessed.Terminal) -> None:
         """Change Player"""
-        if self.player_active == Token.PLAYER_ONE.value:
+        if self.player_active == Token.EMPTY.value:
+            self.player_active = Token.PLAYER_ONE.value
+        elif self.player_active == Token.PLAYER_ONE.value:
             self.player_active = Token.PLAYER_TWO.value
         else:
             self.player_active = Token.PLAYER_ONE.value
 
+        self.term_info[0] = f"Player {self.player_active} Active"
+
     def game_over(self, term: blessed.Terminal) -> None:
         """Placeholder game over function"""
-        # TODO fix wrong player - band-aid solution
-        self.change_player(term)
-
+        self.term_info[0] = ""
         self.term_info[1] = f"Player {self.player_active} WINS!"
         self.term_info[2] = ""
         self.redraw_user_term(term)
