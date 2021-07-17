@@ -1,10 +1,11 @@
 import time
-from enum import Enum
 import typing
+from enum import Enum
 
 import blessed
 
 from .board import Board
+from .connection import QUEUE, Tags, create_connection
 from .user_term import convert_to_space_location, update_user_section
 
 
@@ -35,9 +36,11 @@ class State(Enum):
     update_subgrid_select = 20
     update_space_select = 30
     end_of_turn = 40
-    game_over = 99
-from .connection import QUEUE, Tags, create_connection
-from .user_term import convert_to_space_location, update_user_section
+    network_prompt = 80
+    lobby_creation_prompt = 90
+    websocket_url_prompter = 100
+    lobby_code_prompter = 110
+    game_over = 999
 
 
 class GameState:
@@ -78,13 +81,13 @@ class GameState:
             self.update_space_select(term, board)
         elif self.next == State.game_over.value:
             return
-        elif self.next == 80:
+        elif self.next == State.network_prompt.value:
             self.network_prompt(term)
-        elif self.next == 90:
+        elif self.next == State.lobby_creation_prompt.value:
             self.lobby_creation_prompt(term)
-        elif self.next == 100:
+        elif self.next == State.websocket_url_prompter.value:
             self.websocket_url_prompter(term)
-        elif self.next == 110:
+        elif self.next == State.lobby_code_prompter.value:
             self.lobby_code_prompter(term, board)
         else:
             # TODO error state catch all
@@ -101,22 +104,22 @@ class GameState:
         self.player_active = Token.PLAYER_ONE.value
 
         if self.user_input == "y" or self.user_input == "KEY_ENTER":
-            self.next = 80
+            self.next = State.network_prompt.value
             self.term_info[1] = "do you wish to be WIRED?"
             self.term_info[2] = "(y/n?)"
         else:
-            self.next = 10
+            self.next = State.wait_for_ready.value
 
         self.redraw_user_term(term)
 
     def network_prompt(self, term: blessed.Terminal) -> None:
-        self.current = 80
         """Ask the user whether they want to use multiplayer"""
+        self.current = State.network_prompt.value
         if self.user_input == "y":
             self.networked = True
             print(f"{term.move_xy(0, 26)}websocket url: ", end="", flush=True)
 
-            self.next = 100
+            self.next = State.websocket_url_prompter.value
         elif self.user_input == "n":
             self.draw_starting_user_term(term)
             self.networked = False
@@ -125,12 +128,13 @@ class GameState:
 
     def websocket_url_prompter(self, term: blessed.Terminal) -> None:
         """Prompt the user for the url to the websocket"""
+        self.current = State.websocket_url_prompter.value
         if self.user_input == "KEY_ENTER":
             self.term_info[1] = "wanna make a lobby?"
             self.term_info[2] = "(y/n?)"
             self.redraw_user_term(term)
             print(f"{term.move_xy(0, 26)}{term.clear_eol}", end="", flush=True)
-            self.next = 90
+            self.next = State.lobby_creation_prompt.value
 
         elif self.user_input in ("KEY_BACKSPACE", "KEY_DELETE") and self.ws_url != "":
             self.ws_url = self.ws_url[:-1]
@@ -142,6 +146,7 @@ class GameState:
 
     def lobby_creation_prompt(self, term: blessed.Terminal) -> None:
         """Ask the user whether they want to join / make a lobby"""
+        self.current = State.lobby_creation_prompt.value
         if self.user_input == "y":
             self.networked_player = 1
             self.inputs, self.outputs = create_connection(None, self.ws_url)
@@ -164,12 +169,13 @@ class GameState:
         elif self.user_input == "n":
             self.networked_player = 2
             print(f"{term.move_xy(0, 26)}lobby code: ", end="", flush=True)
-            self.next = 110
+            self.next = State.lobby_code_prompter.value
         else:
             return
 
     def lobby_code_prompter(self, term: blessed.Terminal, board: Board) -> None:
         """Prompt the user for the code for their lobby"""
+        self.current = State.lobby_code_prompter.value
         if self.user_input == "KEY_ENTER":
             self.inputs, self.outputs = create_connection(
                 int(self.lobby_code), self.ws_url
@@ -313,9 +319,7 @@ class GameState:
                 term, subgrid, subgrid_number, term.green, Token.PLAYER_TWO.value
             )
         else:
-            board.redraw_subgrid(
-                term, subgrid, subgrid_number, term.green, None
-            )
+            board.redraw_subgrid(term, subgrid, subgrid_number, term.green, None)
 
         # handle logic for next grid
 
@@ -341,11 +345,24 @@ class GameState:
         self.update_board = False
 
         # circle back to top or end the game
-        if board.check_board_victory() not in (
-            Token.PLAYER_ONE.value,
-            Token.PLAYER_TWO.value,
-        ):
-            self.wait_for_ready(term)
+        if board.check_board_victory() not in ("X", "O"):
+            self.term_info[0] = f"Player {self.player_active} Active"
+
+            if not self.networked or self.networked_player == self.player_active:
+                if self.user_select_subgrid != 0:
+                    self.next = 30  # skip to space select
+                    self.term_info[1] = "Select Space by entering 1-9"
+                else:
+                    self.next = 20  # go to subgrid select
+                    self.term_info[1] = "Select SubGrid by entering 1-9"
+
+                self.term_info[2] = (
+                    f"Current: SubGrid {self.user_select_subgrid} "
+                    f"| Space {self.user_select_space}"
+                )
+                self.redraw_user_term(term)
+            else:
+                self.opponent_turn(term, board)
         else:
             self.game_over(term)
 
@@ -399,7 +416,7 @@ class GameState:
 
     def draw_starting_user_term(self, term: blessed.Terminal) -> None:
         """Put the initial text for the user terminal and draw it"""
-        self.next = 20
+        self.next = State.update_subgrid_select.value
         self.term_info[0] = "Player 1 Active"
         self.term_info[1] = "Select SubGrid by entering 1-9"
         self.term_info[2] = f"Current: SubGrid {self.user_select_subgrid}"
@@ -423,7 +440,7 @@ class GameState:
             self.term_info[1] = "your opponent left"
             self.term_info[2] = "(find someone with more spine next time)"
             self.term_info[3] = ""
-            self.next = 40
+            self.next = State.end_of_turn.value
 
         elif output_msg[0] == Tags.PLACE_SQUARE:
             self.user_select_space = output_msg[1]

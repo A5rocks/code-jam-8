@@ -78,6 +78,7 @@ def _establish_connection(
 
     while True:
         msg = json.loads(ws.recv())
+        print(msg)
         if msg["tag"] == 7:
             # for some reason, mypy thinks this is `outputs.put(tuple[Tags])`?
             outputs.put((Tags.DISCONNECTED,))  # type: ignore [arg-type]

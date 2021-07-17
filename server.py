@@ -100,6 +100,8 @@ async def play_game(websocket: WebSocket) -> None:
             msg = await first.receive_text()
             await second.send_text(msg)
 
+            print(msg)
+
     done, _ = await asyncio.wait(
         (worker(player1, websocket), worker(websocket, player1)),
         return_when=asyncio.FIRST_EXCEPTION,
