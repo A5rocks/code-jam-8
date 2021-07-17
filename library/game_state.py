@@ -26,14 +26,15 @@ class Token(Enum):
             return input
 
 
-class state(Enum):
+class State(Enum):
     """Defines the machine state"""
 
     error = 0
     wait_for_ready = 10
     update_subgrid_select = 20
     update_space_select = 30
-    end_turn = 40
+    end_of_turn = 40
+    game_over = 99
 
 
 class GameState:
@@ -57,12 +58,14 @@ class GameState:
 
     def driver(self, term: blessed.Terminal, board: Board) -> None:
         """Main State Machine"""
-        if self.next == 10:
+        if self.next == State.wait_for_ready.value:
             self.wait_for_ready(term)
-        elif self.next == 20:
+        elif self.next == State.update_subgrid_select.value:
             self.update_subgrid_select(term, board)
-        elif self.next == 30:
+        elif self.next == State.update_space_select.value:
             self.update_space_select(term, board)
+        elif self.next == State.game_over.value:
+            return
         else:
             # TODO error state catch all
             pass
@@ -74,18 +77,18 @@ class GameState:
 
     def wait_for_ready(self, term: blessed.Terminal) -> None:
         """Wait for the player to start turn"""
-        self.current = 10
-        if self.player_active == Token.EMPTY:
+        self.current = State.wait_for_ready.value
+        if self.player_active == Token.EMPTY.value:
             self.player_active = Token.PLAYER_ONE.value
 
         if self.user_input == "y" or self.user_input == "KEY_ENTER":
             self.term_info[0] = f"Player {self.player_active} Active"
 
             if self.user_select_subgrid != 0:
-                self.next = 30  # skip to space select
+                self.next = State.update_space_select.value  # skip to space select
                 self.term_info[1] = "Select Space by entering 1-9"
             else:
-                self.next = 20  # go to subgrid select
+                self.next = State.update_subgrid_select.value  # go to subgrid select
                 self.term_info[1] = "Select SubGrid by entering 1-9"
 
             self.term_info[2] = (
@@ -96,13 +99,13 @@ class GameState:
             return None
 
         else:
-            self.next = 10
+            self.next = State.wait_for_ready.value
 
         self.redraw_user_term(term)
 
     def update_subgrid_select(self, term: blessed.Terminal, board: Board) -> None:
         """Update the user selected subgrid"""
-        self.current = 20
+        self.current = State.update_subgrid_select.value
 
         if self.user_input in ("1", "2", "3", "4", "5", "6", "7", "8", "9"):
             self.user_select_subgrid = int(self.user_input)
@@ -112,9 +115,9 @@ class GameState:
             if self.confirm_good_subgrid(board):
                 self.term_info[1] = "Select Space by entering 1-9"
                 self.confirm_entry(term)
-                self.next = 30
+                self.next = State.update_space_select.value
             else:
-                self.next = 20
+                self.next = State.update_subgrid_select.value
                 self.term_info[
                     1
                 ] = f"{term.red}{term.bold}*-That is an illegal move-*{term.normal}"
@@ -139,7 +142,9 @@ class GameState:
                 self.update_board = True  # good to place player Token
                 self.confirm_entry(term)
             else:
-                self.next = 30  # TODO go to error handling and reset values
+                self.next = (
+                    State.update_space_select.value
+                )  # TODO go to error handling and reset values
                 self.term_info[
                     1
                 ] = f"{term.red}{term.bold}*-That is an illegal move-*{term.normal}"
@@ -170,7 +175,7 @@ class GameState:
 
     def end_of_turn(self, term: blessed.Terminal, board: Board) -> None:
         """End of Turn"""
-        self.current = 40
+        self.current = State.end_of_turn.value
 
         # Handle end of turn
         working_space_location = convert_to_space_location(self.user_select_space)
@@ -263,4 +268,12 @@ class GameState:
 
     def game_over(self, term: blessed.Terminal) -> None:
         """Placeholder game over function"""
+        # TODO fix wrong player - band-aid solution
+        self.change_player(term)
+
+        self.term_info[1] = f"Player {self.player_active} WINS!"
+        self.term_info[2] = ""
+        self.redraw_user_term(term)
+
         print("Game over!")
+        self.next = State.game_over.value
