@@ -1,11 +1,11 @@
 import time
+import typing
 
 import blessed
 
-from library.user_term import convert_to_space_location
-
 from .board import Board
-from .user_term import update_user_section
+from .connection import QUEUE, Tags, create_connection
+from .user_term import convert_to_space_location, update_user_section
 
 
 class GameState:
@@ -21,6 +21,15 @@ class GameState:
         self.user_select_subgrid: int = 0
         self.user_select_space: int = 0
         self.user_input: str = ""
+        self.is_sequence: bool = False
+        self.ws_url: str = ""
+        self.networked: bool = False
+        self.lobby_code: str = ""
+        self.networked_player: int = 0
+
+        # networking queues
+        self.inputs: typing.Optional[QUEUE] = None
+        self.outputs: typing.Optional[QUEUE] = None
 
         self.term_info[1] = "shall we play a game?"
         self.term_info[2] = "(y/n?)"
@@ -35,6 +44,17 @@ class GameState:
             self.update_subgrid_select(term, board)
         elif self.next == 30:
             self.update_space_select(term, board)
+        elif self.next == 40:
+            # game over!
+            return
+        elif self.next == 80:
+            self.network_prompt(term)
+        elif self.next == 90:
+            self.lobby_creation_prompt(term)
+        elif self.next == 100:
+            self.websocket_url_prompter(term)
+        elif self.next == 110:
+            self.lobby_code_prompter(term, board)
         else:
             # TODO error state catch all
             pass
@@ -47,30 +67,106 @@ class GameState:
     def wait_for_ready(self, term: blessed.Terminal) -> None:
         """Wait for the player to start turn"""
         self.current = 10
-        if self.player_active == 0:
-            self.player_active = 1
+        self.player_active = 1
 
         if self.user_input == "y" or self.user_input == "KEY_ENTER":
-            self.term_info[0] = f"Player {self.player_active} Active"
-
-            if self.user_select_subgrid != 0:
-                self.next = 30  # skip to space select
-                self.term_info[1] = "Select Space by entering 1-9"
-            else:
-                self.next = 20  # go to subgrid select
-                self.term_info[1] = "Select SubGrid by entering 1-9"
-
-            self.term_info[2] = (
-                f"Current: SubGrid {self.user_select_subgrid} "
-                f"| Space {self.user_select_space}"
-            )
-            self.redraw_user_term(term)
-            return None
-
+            self.next = 80
+            self.term_info[1] = "do you wish to be WIRED?"
+            self.term_info[2] = "(y/n?)"
         else:
             self.next = 10
 
         self.redraw_user_term(term)
+
+    def network_prompt(self, term: blessed.Terminal) -> None:
+        """Ask the user whether they want to use multiplayer"""
+        if self.user_input == "y":
+            self.networked = True
+            print(f"{term.move_xy(0, 26)}websocket url: ", end="", flush=True)
+
+            self.next = 100
+        elif self.user_input == "n":
+            self.draw_starting_user_term(term)
+            self.networked = False
+        else:
+            return
+
+    def websocket_url_prompter(self, term: blessed.Terminal) -> None:
+        """Prompt the user for the url to the websocket"""
+        if self.user_input == "KEY_ENTER":
+            self.term_info[1] = "wanna make a lobby?"
+            self.term_info[2] = "(y/n?)"
+            self.redraw_user_term(term)
+            print(f"{term.move_xy(0, 26)}{term.clear_eol}", end="", flush=True)
+            self.next = 90
+
+        elif self.user_input in ("KEY_BACKSPACE", "KEY_DELETE") and self.ws_url != "":
+            self.ws_url = self.ws_url[:-1]
+            print(f"{term.move_left} {term.move_left}", end="", flush=True)
+
+        elif not self.is_sequence:
+            self.ws_url += self.user_input
+            print(self.user_input, end="", flush=True)
+
+    def lobby_creation_prompt(self, term: blessed.Terminal) -> None:
+        """Ask the user whether they want to join / make a lobby"""
+        if self.user_input == "y":
+            self.networked_player = 1
+            self.inputs, self.outputs = create_connection(None, self.ws_url)
+            output_msg = self.outputs.get()
+
+            if output_msg[0] != Tags.GAME_MADE:
+                raise Exception(f"lobby was not made, {output_msg}")
+
+            code = output_msg[1]
+            self.term_info[1] = "lobby code is:"
+            self.term_info[2] = str(code)
+            self.redraw_user_term(term)
+
+            output_msg = self.outputs.get()
+
+            if output_msg[0] != Tags.GAME_STARTED:
+                raise Exception("game did not start")
+
+            self.draw_starting_user_term(term)
+        elif self.user_input == "n":
+            self.networked_player = 2
+            print(f"{term.move_xy(0, 26)}lobby code: ", end="", flush=True)
+            self.next = 110
+        else:
+            return
+
+    def lobby_code_prompter(self, term: blessed.Terminal, board: Board) -> None:
+        """Prompt the user for the code for their lobby"""
+        if self.user_input == "KEY_ENTER":
+            self.inputs, self.outputs = create_connection(
+                int(self.lobby_code), self.ws_url
+            )
+            print(f"{term.move_xy(0, 26)}{term.clear_eol}", end="", flush=True)
+            # wait for GAME_STARTED
+            self.outputs.get()
+            self.opponent_turn(term, board)
+
+        elif (
+            self.user_input in ("KEY_BACKSPACE", "KEY_DELETE") and self.lobby_code != ""
+        ):
+            self.lobby_code = self.lobby_code[:-1]
+            print(f"{term.move_left} {term.move_left}", end="", flush=True)
+
+        elif not self.is_sequence and self.user_input in (
+            "0",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+        ):
+            self.lobby_code += self.user_input
+            print(self.user_input, end="", flush=True)
 
     def update_subgrid_select(self, term: blessed.Terminal, board: Board) -> None:
         """Update the user selected subgrid"""
@@ -144,6 +240,15 @@ class GameState:
         """End of Turn"""
         self.current = 40
 
+        if (
+            self.networked
+            and self.player_active == self.networked_player
+            and self.inputs is not None
+        ):
+            self.inputs.put(
+                (Tags.PLACE_SQUARE, self.user_select_space, self.user_select_subgrid)
+            )
+
         # Handle end of turn
         working_space_location = convert_to_space_location(self.user_select_space)
         subgrid_number = str(self.user_select_subgrid)
@@ -188,7 +293,23 @@ class GameState:
 
         # circle back to top or end the game
         if board.check_board_victory() not in ("X", "O"):
-            self.wait_for_ready(term)
+            self.term_info[0] = f"Player {self.player_active} Active"
+
+            if not self.networked or self.networked_player == self.player_active:
+                if self.user_select_subgrid != 0:
+                    self.next = 30  # skip to space select
+                    self.term_info[1] = "Select Space by entering 1-9"
+                else:
+                    self.next = 20  # go to subgrid select
+                    self.term_info[1] = "Select SubGrid by entering 1-9"
+
+                self.term_info[2] = (
+                    f"Current: SubGrid {self.user_select_subgrid} "
+                    f"| Space {self.user_select_space}"
+                )
+                self.redraw_user_term(term)
+            else:
+                self.opponent_turn(term, board)
         else:
             self.game_over(term)
 
@@ -233,3 +354,39 @@ class GameState:
         """Placeholder game over function"""
         self.term_info[1] = "Game over!"
         self.redraw_user_term(term)
+
+    def draw_starting_user_term(self, term: blessed.Terminal) -> None:
+        """Put the initial text for the user terminal and draw it"""
+        self.next = 20
+        self.term_info[0] = "Player 1 Active"
+        self.term_info[1] = "Select SubGrid by entering 1-9"
+        self.term_info[2] = f"Current: SubGrid {self.user_select_subgrid}"
+        self.redraw_user_term(term)
+
+    def opponent_turn(self, term: blessed.Terminal, board: Board) -> None:
+        """Let the opponent play their turn"""
+        self.term_info[0] = ""
+        self.term_info[1] = "waiting for opponent input"
+        self.term_info[2] = "use ctrl+c to exit (not q)"
+        self.redraw_user_term(term)
+
+        if self.outputs is not None:
+            output_msg = self.outputs.get()
+        else:
+            raise Exception("somehow the game state has gone wonky.")
+
+        if output_msg[0] == Tags.DISCONNECTED:
+            # opponent disconnected, what to do?
+            self.term_info[0] = ""
+            self.term_info[1] = "your opponent left"
+            self.term_info[2] = "(find someone with more spine next time)"
+            self.term_info[3] = ""
+            self.next = 40
+
+        elif output_msg[0] == Tags.PLACE_SQUARE:
+            self.user_select_space = output_msg[1]
+            self.user_select_subgrid = output_msg[2]
+            # this will only recurse once.
+            self.end_of_turn(term, board)
+        else:
+            raise Exception(f"unexpected {output_msg}")

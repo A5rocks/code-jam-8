@@ -8,7 +8,9 @@ import typing
 import websocket  # type: ignore [import]
 
 
-class _Tags(enum.IntEnum):
+class Tags(enum.IntEnum):
+    """Tags for tagged tuples (no ADTs :( )"""
+
     GAME_MADE = 1
     GAME_STARTED = 2
     PLACE_SQUARE = 3
@@ -17,13 +19,13 @@ class _Tags(enum.IntEnum):
 
 TAGGED_TUPLES = typing.Union[
     # game was made, second is game code.
-    tuple[typing.Literal[_Tags.GAME_MADE], int],
+    tuple[typing.Literal[Tags.GAME_MADE], int],
     # game can start, other player joined.
-    tuple[typing.Literal[_Tags.GAME_STARTED]],
+    tuple[typing.Literal[Tags.GAME_STARTED]],
     # move to `subgrid`, `square`.
-    tuple[typing.Literal[_Tags.PLACE_SQUARE], int, int],
+    tuple[typing.Literal[Tags.PLACE_SQUARE], int, int],
     # disconnected
-    tuple[typing.Literal[_Tags.DISCONNECTED]],
+    tuple[typing.Literal[Tags.DISCONNECTED]],
 ]
 
 QUEUE = queue.Queue[TAGGED_TUPLES]
@@ -44,7 +46,7 @@ def _establish_connection(
 
         game_code = resp["code"]
 
-        outputs.put((_Tags.GAME_MADE, game_code))
+        outputs.put((Tags.GAME_MADE, game_code))
 
         # wait until another player joins
         ping = json.loads(ws.recv())
@@ -58,8 +60,8 @@ def _establish_connection(
         ws.send(json.dumps({"tag": 1, "code": code}))
 
     # now we have a direct connection to the other player
-    # for some reason, mypy thinks this is `outputs.put(tuple[_Tags])`?
-    outputs.put((_Tags.GAME_STARTED,))  # type: ignore [arg-type]
+    # for some reason, mypy thinks this is `outputs.put(tuple[Tags])`?
+    outputs.put((Tags.GAME_STARTED,))  # type: ignore [arg-type]
 
     # now, if a player disconnects, the other session will notice when it's not their turn but like...
     # whatever.
@@ -67,7 +69,7 @@ def _establish_connection(
     # player who made the lobby goes first
     if not code:
         input_msg = inputs.get()
-        if input_msg[0] != _Tags.PLACE_SQUARE:
+        if input_msg[0] != Tags.PLACE_SQUARE:
             return
 
         tag, subgrid, square = input_msg
@@ -77,15 +79,15 @@ def _establish_connection(
     while True:
         msg = json.loads(ws.recv())
         if msg["tag"] == 7:
-            # for some reason, mypy thinks this is `outputs.put(tuple[_Tags])`?
-            outputs.put((_Tags.DISCONNECTED,))  # type: ignore [arg-type]
+            # for some reason, mypy thinks this is `outputs.put(tuple[Tags])`?
+            outputs.put((Tags.DISCONNECTED,))  # type: ignore [arg-type]
             return
         elif msg["tag"] != 8:
             return
-        outputs.put((_Tags.PLACE_SQUARE, msg["subgrid"], msg["square"]))
+        outputs.put((Tags.PLACE_SQUARE, msg["subgrid"], msg["square"]))
 
         input_msg = inputs.get()
-        if input_msg[0] != _Tags.PLACE_SQUARE:
+        if input_msg[0] != Tags.PLACE_SQUARE:
             return
 
         tag, subgrid, square = input_msg
@@ -106,6 +108,6 @@ def create_connection(code: typing.Optional[int], url: str) -> tuple[QUEUE, QUEU
     outputs: QUEUE = queue.Queue[TAGGED_TUPLES]()
     threading.Thread(
         target=_establish_connection, args=(inputs, outputs, code, url)
-    ).run()
+    ).start()
 
     return inputs, outputs
