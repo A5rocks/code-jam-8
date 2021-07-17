@@ -152,7 +152,7 @@ class GameState:
         self.redraw_user_term(term)
 
         if self.update_board:
-            time.sleep(2)
+            time.sleep(1)
             self.end_of_turn(term, board)
 
     def confirm_entry(self, term: blessed.Terminal) -> None:
@@ -206,13 +206,22 @@ class GameState:
             Token.PLAYER_ONE.value,
             Token.PLAYER_TWO.value,
         ):
+            # change the selected subgrid to that space number
             self.user_select_subgrid = self.user_select_space
             self.user_select_space = 0
             self.term_info[2] = (
                 f"Current: SubGrid {self.user_select_subgrid} "
                 f"| Space {self.user_select_space}"
             )
+            board.redraw_subgrid(
+                term,
+                board.collect_subgrid(str(self.user_select_subgrid)),
+                str(self.user_select_subgrid),
+                term.yellow,
+                None,
+            )
         else:
+            # change the subgrid to 0 to let the next player choose the subgrid
             self.user_select_subgrid = 0
         self.redraw_user_term(term)
         self.update_board = False
@@ -229,7 +238,7 @@ class GameState:
     def confirm_good_move(self, board: Board) -> bool:
         """Handle the entry of a bad move"""
         # guilty until proven innocent
-        self.good_move = False
+        good_move = False
 
         working_space_location = convert_to_space_location(self.user_select_space)
         if board.collect_subgrid(str(self.user_select_subgrid))[
@@ -237,13 +246,13 @@ class GameState:
         ] not in (Token.PLAYER_ONE.value, Token.PLAYER_TWO.value):
             self.good_move = True
 
-        return self.good_move
+        return good_move
 
     def confirm_good_subgrid(self, board: Board) -> bool:
         """Handle the entry of a bad subgrid choice"""
         # guilty until proven innocent
-        self.good_move = False
-
+        good_grid = False
+        # pull subgrid just chosen by player
         working_subgrid = board.collect_subgrid(str(self.user_select_subgrid))
         if board.check_grid_victory(working_subgrid) not in (
             Token.PLAYER_ONE.value,
@@ -251,7 +260,7 @@ class GameState:
         ):
             self.good_move = True
 
-        return self.good_move
+        return good_grid
 
     def change_player(self, term: blessed.Terminal) -> None:
         """Change Player"""
